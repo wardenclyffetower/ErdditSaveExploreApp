@@ -2,9 +2,19 @@
 import argparse
 import praw
 from praw.models import Submission, Comment
+import datetime
+from rich.console import Console
 
 
 def main():
+    styles = {
+        "comment_content": "yellow",
+        "submission_content": "yellow",
+        "post_date": "green",
+        "post_title": "white",
+        "subreddit": "orange",
+    }
+    console = Console()
     parser = argparse.ArgumentParser(description="Explore your saved Reddit posts.")
     parser.add_argument("reddit_account", help="The Reddit account to explore.")
     parser.add_argument(
@@ -13,31 +23,50 @@ def main():
         default=10,
         help="The number of posts to get (default: 10).",
     )
+    parser.add_argument(
+        "--subreddit",
+        type=str,
+        default="",
+        help="The subreddit to filter by.",
+    )
 
     args = parser.parse_args()
 
-    print(f"Reddit Account: {args.reddit_account}")
-    print(f"Number of posts: {args.num_posts}")
+    console.print(f"Reddit Account: {args.reddit_account}")
+    console.print(f"Number of posts: {args.num_posts}")
+    if args.subreddit:
+        console.print(f"Filtering by subreddit: {args.subreddit}")
 
     try:
         reddit = praw.Reddit(args.reddit_account)
         user = reddit.user.me()
         if user is None:
-            print(
+            console.print(
                 "Error: Could not retrieve user information. Please check your Reddit account credentials."
             )
             exit(1)
-        print(user)
+        console.print(user)
         for i, saved_post in enumerate(user.saved(limit=args.num_posts)):
+            if (
+                args.subreddit
+                and saved_post.subreddit.display_name.lower() != args.subreddit.lower()
+            ):
+                continue
             if isinstance(saved_post, Submission):
-                print(f"{i + 1}. Post: {saved_post.title}")
+                header = f"{i + 1}. Subreddit: [{styles['subreddit']}]{saved_post.subreddit.display_name}[/] - Post Date: [{styles['post_date']}]{datetime.datetime.fromtimestamp(saved_post.created_utc)}[/]"
+                console.print(header)
+                console.print(f"Post: [{styles['post_title']}]{saved_post.title}[/]")
             elif isinstance(saved_post, Comment):
-                print(f"{i + 1}. Comment: {saved_post.body}")
+                header = f"{i + 1}. Subreddit: [{styles['subreddit']}]{saved_post.subreddit.display_name}[/] - Comment Date: [{styles['post_date']}]{datetime.datetime.fromtimestamp(saved_post.created_utc)}[/] - Post Title: [{styles['post_title']}]{saved_post.submission.title}[/] - Post Date: [{styles['post_date']}]{datetime.datetime.fromtimestamp(saved_post.submission.created_utc)}[/]"
+                console.print(header)
+                console.print(
+                    f"Comment: [{styles['comment_content']}]{saved_post.body}[/]"
+                )
             else:
-                print(f"{i + 1}. Unknown type: {type(saved_post)}")
+                console.print(f"{i + 1}. Unknown type: {type(saved_post)}")
 
     except Exception as e:
-        print(f"Error: {e}")
+        console.print(f"Error: {e}")
         exit(1)
 
 
